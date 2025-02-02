@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expiry Scanner</title>
+
+    <img src="{{ url_for('static', filename='logo12.png') }}" alt="Expiry Scanner Logo" class="logo">
+    
+    <!-- Bootstrap CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            color: #333;
+            margin-top: 20px;
+        }
+        .menu button {
+            padding: 12px;
+            margin: 10px;
+            font-size: 18px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        
+        .table-responsive {
+    max-width: 65%;  /* Adjust width (e.g., 70%, 60%) */
+    margin: 0 auto;  /* Center the table */
+}
+        .menu button:hover {
+            background-color: #0056b3;
+        }
+        .logo {
+    width: 120px;  /* Adjust to make it smaller */
+    height: auto;  /* Maintain aspect ratio */
+    display: block;
+    margin: 20px auto;  /* Center the logo */
+          }
+        .section {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+        }
+        input {
+            display: block;
+            margin: 10px auto;
+            padding: 10px;
+            width: 80%;
+            max-width: 300px;
+        }
+        button {
+            padding: 10px;
+            font-size: 16px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>     </h1>
+
+    <div class="menu">
+        <button onclick="showSection('add-product')">➕ Add Product</button>
+        <button onclick="showSection('product-info')">🔍 Product Info</button>
+        <button onclick="showSection('expiry-list')">⚠️ Expiry List</button>
+    </div>
+
+    <!-- Add Product Section -->
+    <div id="add-product" class="section">
+        <h2>➕ Add Product</h2>
+        <input type="text" id="productName" placeholder="Product Name">
+        <input type="text" id="barcode" placeholder="Barcode">
+        <input type="date" id="expiryDate">
+        <button onclick="addProduct()">Add Product</button>
+    </div>
+
+    <!-- Product Info Section -->
+    <div id="product-info" class="section">
+        <h2>🔍 Scan Product</h2>
+        <input type="text" id="searchBarcode" placeholder="Enter Barcode">
+        <button onclick="getProductInfo()">Get Product Info</button>
+        <p id="productResult"></p>
+    </div>
+
+    <!-- Expiry Product List -->
+    <div id="expiry-list" class="section">
+        <h2>⚠️ Expiry Product List</h2>
+        <button class="btn btn-primary mb-3" onclick="loadExpiryProducts()">Load Expiry Products</button>
+        
+        <div id="expiryTableContainer" class="table-responsive" style="display: none;">
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID No.</th>
+                        <th>Name</th>
+                        <th>Expiring On</th>
+                        <th>Time Left</th>
+                    </tr>
+                </thead>
+                <tbody id="expiryProductsTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:5000"; // Change if using a backend
+
+        // Show sections based on menu selection
+        function showSection(sectionId) {
+            document.querySelectorAll(".section").forEach(sec => sec.style.display = "none");
+            document.getElementById(sectionId).style.display = "block";
+        }
+
+        // Function to add a new product
+        function addProduct() {
+            let name = document.getElementById("productName").value;
+            let barcode = document.getElementById("barcode").value;
+            let expiryDate = document.getElementById("expiryDate").value;
+
+            if (!name || !barcode || !expiryDate) {
+                alert("Please fill in all fields!");
+                return;
+            }
+
+            fetch(`${API_URL}/add_product`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, barcode, expiry_date: expiryDate })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert("Product added successfully!");
+                document.getElementById("productName").value = "";
+                document.getElementById("barcode").value = "";
+                document.getElementById("expiryDate").value = "";
+            })
+            .catch(error => {
+                console.error("Error adding product:", error);
+                alert("Error adding product!");
+            });
+        }
+
+        // Function to get product info by barcode
+        function getProductInfo() {
+            let barcode = document.getElementById("searchBarcode").value;
+
+            if (!barcode) {
+                alert("Please enter a barcode!");
+                return;
+            }
+
+            fetch(`${API_URL}/scan/${barcode}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById("productResult").innerHTML = "Product not found!";
+                    } else {
+                        document.getElementById("productResult").innerHTML = 
+                            `<strong>${data.name}</strong> - Expiry: ${data.expiry_date} - Time Left: ${data.time_till_expiry.days} days`;
+                    }
+                })
+                .catch(error => {
+                    console.error("Error fetching product info:", error);
+                    alert("Error fetching product info!");
+                });
+        }
+
+        // Function to load expiry products into the table
+function loadExpiryProducts() {
+    fetch(`${API_URL}/products/expiring_soon`)
+        .then(response => response.json())
+        .then(products => {
+            let tableContainer = document.getElementById("expiryTableContainer");
+            let tableBody = document.getElementById("expiryProductsTableBody");
+            
+            // Clear existing table data
+            tableBody.innerHTML = "";
+            
+            // Show the table only when there are products to display
+            if (products.length === 0) {
+                tableContainer.style.display = "none"; // Hide the table if no products
+                alert("No products expiring within 14 days!");
+                return;
+            } else {
+                tableContainer.style.display = "block"; // Show table when products exist
+            }
+
+            // Filter out products with more than 14 days left
+            products = products.filter(product => product.time_till_expiry.days <= 14);
+            products.sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
+
+            if (products.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" class="text-center">No products expiring within 14 days!</td></tr>`;
+                return;
+            }
+
+            products.forEach(product => {
+                let expiryDate = new Date(product.expiry_date).toDateString();
+                let daysLeft = product.time_till_expiry.days;
+                let statusText = daysLeft < 0 ? "EXPIRED" : `${daysLeft} days`;
+
+                let rowClass = "";
+                if (daysLeft < 0) rowClass = "table-danger"; // Expired (Red)
+                else if (daysLeft <= 7) rowClass = "table-warning"; // Near expiry (Yellow)
+
+                tableBody.innerHTML += `
+                    <tr class="${rowClass}">
+                        <td>${product.id}</td>
+                        <td>${product.name}</td>
+                        <td>${expiryDate}</td>
+                        <td>${statusText}</td>
+                    </tr>
+                `;
+            });
+        })
+        .catch(error => {
+            console.error("Error fetching expiry products:", error);
+            alert("Error fetching expiry products!");
+        });
+}
+
+    </script>
+
+</body>
+</html>
